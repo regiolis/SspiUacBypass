@@ -1,5 +1,6 @@
 // Slightly modified version of --> https://www.x86matthew.com/view_post?id=create_svc_rpc
 // Original Author: @x86matthew
+// Modified to support TrustedInstaller privileges
 
 #ifdef UNICODE
 #undef UNICODE
@@ -9,6 +10,7 @@
 
 #include <stdio.h>
 #include <windows.h>
+#include "PrivilegeHelpers.h"
 
 // rpc command ids
 #define RPC_CMD_ID_OPEN_SC_MANAGER 27
@@ -337,7 +339,7 @@ DWORD RpcConnect(char* pPipeName, char* pInterfaceUUID, DWORD dwInterfaceVersion
 
 	// set pipe path
 	memset(szPipePath, 0, sizeof(szPipePath));
-	_snprintf(szPipePath, sizeof(szPipePath) - 1, "\\\\127.0.0.1\\pipe\\%s", pPipeName);
+	_snprintf_s(szPipePath, sizeof(szPipePath), _TRUNCATE, "\\\\127.0.0.1\\pipe\\%s", pPipeName);
 
 	// open rpc pipe
 	hFile = CreateFile(szPipePath, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
@@ -562,12 +564,12 @@ int InvokeCreateSvcRpcMain(char* pExecCmd)
 
 	// generate a temporary service name
 	memset(szServiceName, 0, sizeof(szServiceName));
-	_snprintf(szServiceName, sizeof(szServiceName) - 1, "CreateSvcRpc_%u", GetTickCount());
+	_snprintf_s(szServiceName, sizeof(szServiceName), _TRUNCATE, "CreateSvcRpc_%u", GetTickCount());
 	dwServiceNameLength = strlen(szServiceName) + 1;
 
-	// set service command line
+	// set service command line  
 	memset(szServiceCommandLine, 0, sizeof(szServiceCommandLine));
-	_snprintf(szServiceCommandLine, sizeof(szServiceCommandLine) - 1, "cmd /c start %s", pExecCmd);
+	_snprintf_s(szServiceCommandLine, sizeof(szServiceCommandLine), _TRUNCATE, "%s", pExecCmd);
 	dwServiceCommandLineLength = strlen(szServiceCommandLine) + 1;
 
 	printf("Connecting to \\\\127.0.0.1\\pipe\\ntsvcs RPC pipe \n");
@@ -623,7 +625,7 @@ int InvokeCreateSvcRpcMain(char* pExecCmd)
 
 	printf("Creating temporary service...\n");
 
-	// CreateService
+	// CreateService avec interaction desktop
 	RpcInitialiseRequestData(&RpcConnection);
 	RpcAppendRequestData_Binary(&RpcConnection, bServiceManagerObject, sizeof(bServiceManagerObject));
 	RpcAppendRequestData_Dword(&RpcConnection, dwServiceNameLength);
@@ -632,7 +634,8 @@ int InvokeCreateSvcRpcMain(char* pExecCmd)
 	RpcAppendRequestData_Binary(&RpcConnection, (BYTE*)szServiceName, dwServiceNameLength);
 	RpcAppendRequestData_Dword(&RpcConnection, 0);
 	RpcAppendRequestData_Dword(&RpcConnection, SERVICE_ALL_ACCESS);
-	RpcAppendRequestData_Dword(&RpcConnection, SERVICE_WIN32_OWN_PROCESS);
+	// Modifier le type de service pour permettre l'interaction desktop
+	RpcAppendRequestData_Dword(&RpcConnection, SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS);
 	RpcAppendRequestData_Dword(&RpcConnection, SERVICE_DEMAND_START);
 	RpcAppendRequestData_Dword(&RpcConnection, SERVICE_ERROR_IGNORE);
 	RpcAppendRequestData_Dword(&RpcConnection, dwServiceCommandLineLength);
@@ -763,4 +766,11 @@ int InvokeCreateSvcRpcMain(char* pExecCmd)
 	}
 
 	return 0;
+}
+
+// Enhanced function with options
+int InvokeCreateSvcRpcMainWithOptions(char* pExecCmd, BOOL bInteractive, BOOL bTrustedInstaller) {
+	// For now, just use the standard function
+	// The actual logic is handled in the service mode
+	return InvokeCreateSvcRpcMain(pExecCmd);
 }
