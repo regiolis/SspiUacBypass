@@ -35,7 +35,7 @@ Run a command using Trusted Installer Privileges
 **Note**: Using the *-t* argument, *SspiUacBypass.exe* will try to start the **Trusted Installer service**, get its token, duplicate it and use it to spawn the process using the same privileges as *Trusted Installer*.
 
 ```
-SspiUacBypass.exe  -i c:\windows\system32\cmd.exe
+SspiUacBypass.exe  -t c:\windows\system32\cmd.exe
 ```
 
 
