@@ -404,6 +404,10 @@ DWORD GetCurrentUserSessionId() {
         sessionId = 0;
     }
 
+    if (sessionId == 0) {
+        printf("Warning: Running in session 0, process may not have UI access\n");
+    }
+
     CloseHandle(hToken);
     return sessionId;
 }
@@ -430,8 +434,91 @@ HANDLE GetActiveUserSessionToken() {
     return hUserToken;
 }
 
-// Enhanced function to create process in user session
-BOOL CreateProcessInUserSession(HANDLE hToken, char* cmdline, DWORD sessionId) {
+// Enhanced function to create process in the desired session
+BOOL CreateProcessInSession(char* cmdline, DWORD sessionId) {
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    HANDLE hUserToken = NULL;
+    BOOL result = FALSE;
+
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    ZeroMemory(&pi, sizeof(pi));
+
+    // Special handling for session 0 (services session)
+    if (sessionId == 0) {
+        printf("Executing in session 0 (services session)\n");
+
+        // For session 0, use CreateProcess directly (no user token needed)
+        result = CreateProcessA(
+            NULL,               // No module name
+            cmdline,            // Command line
+            NULL,               // Process handle not inheritable
+            NULL,               // Thread handle not inheritable
+            FALSE,              // Set handle inheritance to FALSE
+            CREATE_NEW_CONSOLE | CREATE_NEW_PROCESS_GROUP, // Creation flags
+            NULL,               // Use parent's environment block
+            NULL,               // Use parent's starting directory
+            &si,                // Pointer to STARTUPINFO structure
+            &pi                 // Pointer to PROCESS_INFORMATION structure
+        );
+
+        if (result) {
+            printf("Process created successfully in session 0\n");
+            printf("Process ID: %d\n", pi.dwProcessId);
+        }
+        else {
+            printf("Failed to create process in session 0: %d\n", GetLastError());
+        }
+    }
+    else {
+        // For user sessions, get the user token
+        if (!WTSQueryUserToken(sessionId, &hUserToken)) {
+            printf("Failed to get user token for session %d: %d\n", sessionId, GetLastError());
+            return FALSE;
+        }
+
+        printf("Successfully got user token for session %d\n", sessionId);
+        si.lpDesktop = "winsta0\\default"; // Specify user desktop for interactive sessions
+
+        // Create process with the session-specific token
+        result = CreateProcessAsUserA(
+            hUserToken,         // Token for the session
+            NULL,               // No module name
+            cmdline,            // Command line
+            NULL,               // Process handle not inheritable
+            NULL,               // Thread handle not inheritable
+            FALSE,              // Set handle inheritance to FALSE
+            CREATE_NEW_CONSOLE, // Creation flags
+            NULL,               // Use parent's environment block
+            NULL,               // Use parent's starting directory
+            &si,                // Pointer to STARTUPINFO structure
+            &pi                 // Pointer to PROCESS_INFORMATION structure
+        );
+
+        if (result) {
+            printf("Process created successfully in session %d\n", sessionId);
+            printf("Process ID: %d\n", pi.dwProcessId);
+        }
+        else {
+            printf("Failed to create process in session %d: %d\n", sessionId, GetLastError());
+        }
+
+        // Clean up the token
+        CloseHandle(hUserToken);
+    }
+
+    if (result) {
+        // Don't wait for interactive processes - close handles immediately
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+
+    return result;
+}
+
+// Enhanced function to create process with token in the desired session
+BOOL CreateProcessWithTokenInSession(HANDLE hToken, char* cmdline, DWORD sessionId) {
     STARTUPINFOA si;
     PROCESS_INFORMATION pi;
     HANDLE hUserTokenDup = NULL;
@@ -484,129 +571,7 @@ BOOL CreateProcessInUserSession(HANDLE hToken, char* cmdline, DWORD sessionId) {
         printf("Failed to create process in session %d: %d\n", sessionId, GetLastError());
     }
 
+    // Clean up the token
     CloseHandle(hUserTokenDup);
     return result;
-}
-
-BOOL CreateProcessAsTrustedInstallerWithToken(HANDLE hToken, char* cmdline) {
-    DWORD currentSessionId = GetCurrentUserSessionId();
-
-    printf("Current user session ID: %d\n", currentSessionId);
-
-    if (currentSessionId == 0) {
-        printf("Warning: Running in session 0, process may not have UI access\n");
-    }
-
-    // Try to create process in user session
-    if (CreateProcessInUserSession(hToken, cmdline, currentSessionId)) {
-        return TRUE;
-    }
-
-    // Fallback to standard CreateProcessAsUser
-    printf("Falling back to standard CreateProcessAsUser...\n");
-
-    STARTUPINFOA si;
-    PROCESS_INFORMATION pi;
-
-    ZeroMemory(&si, sizeof(si));
-    si.cb = sizeof(si);
-    si.lpDesktop = "winsta0\\default";
-    ZeroMemory(&pi, sizeof(pi));
-
-    BOOL result = CreateProcessAsUserA(
-        hToken,             // Token handle
-        NULL,               // No module name
-        cmdline,            // Command line
-        NULL,               // Process handle not inheritable
-        NULL,               // Thread handle not inheritable
-        FALSE,              // Set handle inheritance to FALSE
-        CREATE_NEW_CONSOLE, // Creation flags
-        NULL,               // Use parent's environment block
-        NULL,               // Use parent's starting directory
-        &si,                // Pointer to STARTUPINFO structure
-        &pi                 // Pointer to PROCESS_INFORMATION structure
-    );
-
-    if (result) {
-        printf("Process created successfully with TrustedInstaller token\n");
-        printf("Process ID: %d\n", pi.dwProcessId);
-
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
-    }
-    else {
-        printf("Failed to create process with TrustedInstaller token: %d\n", GetLastError());
-    }
-
-    return result;
-}
-
-// Enhanced function for TrustedInstaller with user session support
-BOOL CreateProcessAsTrustedInstallerInUserSession(HANDLE hTIToken, char* cmdline) {
-    DWORD currentSessionId = GetCurrentUserSessionId();
-    HANDLE hUserToken = GetActiveUserSessionToken();
-
-    printf("Attempting to create TrustedInstaller process in user session...\n");
-    printf("Target session ID: %d\n", currentSessionId);
-
-    // Method 1: Use TrustedInstaller token with session adjustment
-    if (CreateProcessInUserSession(hTIToken, cmdline, currentSessionId)) {
-        if (hUserToken) CloseHandle(hUserToken);
-        return TRUE;
-    }
-
-    // Method 2: If we have a user session token, try to combine privileges
-    if (hUserToken) {
-        printf("Trying alternative method with user session token...\n");
-
-        // Duplicate the user token
-        HANDLE hUserTokenDup = NULL;
-        if (DuplicateTokenEx(hUserToken, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenPrimary, &hUserTokenDup)) {
-
-            // Try to adjust privileges to match TrustedInstaller
-            // This is a best-effort approach
-            BOOL result = CreateProcessInUserSession(hUserTokenDup, cmdline, currentSessionId);
-            CloseHandle(hUserTokenDup);
-            CloseHandle(hUserToken);
-
-            if (result) {
-                printf("Successfully created process using user session method\n");
-                return TRUE;
-            }
-        }
-        CloseHandle(hUserToken);
-    }
-
-    // Method 3: Fallback to service with desktop interaction
-    printf("Falling back to service with desktop interaction...\n");
-
-    // Modify command to launch in user session via task scheduler
-    char taskCmd[1024];
-    _snprintf_s(taskCmd, sizeof(taskCmd) - 1,
-        "schtasks /create /tn \"TITask_%d\" /tr \"%s\" /sc once /st 00:00 /ru SYSTEM /f && "
-        "schtasks /run /tn \"TITask_%d\" && "
-        "timeout /t 2 && "
-        "schtasks /delete /tn \"TITask_%d\" /f",
-        GetTickCount(), cmdline, GetTickCount(), GetTickCount());
-
-    // Use the original RPC method with the task scheduler command
-    return (system(taskCmd) == 0);
-}
-
-BOOL CreateProcessAsTrustedInstaller(char* cmdline) {
-    // Don't use CreateProcessA as it inherits from parent process
-    // Instead, we rely on the current thread impersonation
-    printf("Executing command with current TrustedInstaller impersonation: %s\n", cmdline);
-
-    // Use system() which will inherit the impersonation context
-    int result = system(cmdline);
-
-    if (result == 0) {
-        printf("Command executed successfully with TrustedInstaller privileges\n");
-        return TRUE;
-    }
-    else {
-        printf("Command execution failed with exit code: %d\n", result);
-        return FALSE;
-    }
 }

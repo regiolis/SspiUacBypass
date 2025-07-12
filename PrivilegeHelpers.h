@@ -22,11 +22,9 @@ BOOL ImpersonateTrustedInstaller();
 PSID GetTrustedInstallerSID(BOOL* pFromMalloc);
 
 // Process creation functions
-BOOL CreateProcessAsTrustedInstaller(char* cmdline);
-BOOL CreateProcessAsTrustedInstallerWithToken(HANDLE hToken, char* cmdline);
-BOOL CreateProcessAsTrustedInstallerInUserSession(HANDLE hTIToken, char* cmdline);
+BOOL CreateProcessInSession(char* cmdline, DWORD sessionId);
+BOOL CreateProcessWithTokenInSession(HANDLE hToken, char* cmdline, DWORD sessionId);
 
 // Session management functions
 DWORD GetCurrentUserSessionId();
 HANDLE GetActiveUserSessionToken();
-BOOL CreateProcessInUserSession(HANDLE hToken, char* cmdline, DWORD sessionId);

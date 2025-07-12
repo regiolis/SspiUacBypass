@@ -128,7 +128,7 @@ int main(int argc, char* argv[])
                     DWORD sessionId = GetCurrentUserSessionId();
                     HANDLE hToken = NULL;
                     OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &hToken);
-                    CreateProcessInUserSession(hToken, cmdline, sessionId);
+                    CreateProcessWithTokenInSession(hToken, cmdline, sessionId);
                     CloseHandle(hToken);
                 }
                 else {
@@ -263,16 +263,16 @@ int HandleServiceMode(int argc, char* argv[]) {
             DWORD sessionId = WTSGetActiveConsoleSessionId();
             if (sessionId == 0xFFFFFFFF) {
                 printf("No active console session, executing in Session 0\n");
-                CreateProcessAsTrustedInstallerWithToken(hTIToken, cmdline);
+                CreateProcessWithTokenInSession(hTIToken, cmdline, 0);
             }
             else {
                 printf("Active session ID: %d\n", sessionId);
-                CreateProcessInUserSession(hTIToken, cmdline, sessionId);
+                CreateProcessWithTokenInSession(hTIToken, cmdline, sessionId);
             }
         }
         else {
             printf("Creating process in Session 0 with TrustedInstaller privileges...\n");
-            CreateProcessAsTrustedInstallerWithToken(hTIToken, cmdline);
+            CreateProcessWithTokenInSession(hTIToken, cmdline, 0);
         }
 
         CloseHandle(hTIToken);
@@ -290,26 +290,29 @@ int HandleServiceMode(int argc, char* argv[]) {
                 DWORD sessionId = WTSGetActiveConsoleSessionId();
                 if (sessionId == 0xFFFFFFFF) {
                     printf("No active console session, executing in Session 0\n");
-                    system(cmdline);
+                    CreateProcessWithTokenInSession(hToken, cmdline, 0);
                 }
                 else {
                     printf("Active session ID: %d\n", sessionId);
-                    CreateProcessInUserSession(hToken, cmdline, sessionId);
+                    CreateProcessWithTokenInSession(hToken, cmdline, sessionId);
                 }
                 CloseHandle(hToken);
             }
             else {
-                printf("Failed to get process token, using system()\n");
-                system(cmdline);
+                printf("Failed to get process token, spawning without token\n");
+                CreateProcessInSession(cmdline, 0);
             }
         }
         else {
             printf("Executing in Session 0 with SYSTEM privileges...\n");
             printf("Command: %s\n", cmdline);
 
+            CreateProcessInSession(cmdline, 0);
+            /*
             // Simple execution - just run the command as-is
             int result = system(cmdline);
             printf("Command completed with exit code: %d\n", result);
+            */
         }
     }
 
