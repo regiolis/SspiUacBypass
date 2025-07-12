@@ -95,7 +95,13 @@ int main(int argc, char* argv[])
     }
 
     if (!IsMemberOfAdminGroup()) {
-        printf("Admin group membership mandatory, exiting...\n");
+        printf("This account must belongs to Administrators group, exiting...\n");
+        if (cmdline != defaultCmdline) free(cmdline);
+        return -1;
+    }
+
+    if (!HasPassword()) {
+        printf("This account must have a password set, exiting...\n");
         if (cmdline != defaultCmdline) free(cmdline);
         return -1;
     }

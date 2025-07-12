@@ -4,3 +4,4 @@
 #include <stdio.h>
 
 BOOL IsMemberOfAdminGroup();
+BOOL HasPassword();

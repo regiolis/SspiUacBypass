@@ -107,3 +107,47 @@ Cleanup:
 
     return bResult;
 }
+
+BOOL HasPassword() {
+    // Get current username
+    wchar_t username[UNLEN + 1];
+    DWORD size = UNLEN + 1;
+
+    if (!GetUserNameW(username, &size)) {
+        return true; // Assume password exists if we can't check
+    }
+
+    // Try to authenticate with empty password
+    HANDLE hToken;
+    BOOL result = LogonUserW(
+        username,                    // Username
+        L".",                       // Domain (local machine)
+        L"",                        // Empty password
+        LOGON32_LOGON_INTERACTIVE,  // Logon type
+        LOGON32_PROVIDER_DEFAULT,   // Logon provider
+        &hToken                     // Token handle
+    );
+
+    if (result) {
+        // Empty password worked - user has no password
+        CloseHandle(hToken);
+        return false;
+    }
+
+    // Check the error code
+    DWORD error = GetLastError();
+
+    // If error is wrong password, then user has a password
+    if (error == ERROR_LOGON_FAILURE) {
+        return true; // User has a password
+    }
+
+    // If account restrictions prevent empty password login,
+    // it might mean the user has no password but policy prevents it
+    if (error == ERROR_ACCOUNT_RESTRICTION) {
+        return false; // User likely has no password, but policy blocks empty passwords
+    }
+
+    // For other errors, assume password exists
+    return true;
+}
